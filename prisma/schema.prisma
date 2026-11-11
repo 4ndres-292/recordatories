@@ -1,0 +1,71 @@
+// CREADO en la fase 1: define la persistencia; Prisma genera tipos a partir de este contrato.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ReminderCategory {
+  PAYMENT
+  PERSONAL
+  MEETING
+  EXPENSE
+}
+
+enum ReminderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum ReminderPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  // El sub de Google es estable; el correo puede cambiar y no identifica la propiedad.
+  googleSubject String     @unique @db.VarChar(255)
+  name          String?    @db.VarChar(200)
+  email         String?    @db.VarChar(320)
+  image         String?    @db.Text
+  timezone      String     @default("America/La_Paz") @db.VarChar(100)
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  reminders     Reminder[]
+}
+
+model Reminder {
+  id                         String           @id @default(uuid()) @db.Uuid
+  userId                     String           @db.Uuid
+  user                       User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  title                      String           @db.VarChar(200)
+  description                String?          @db.VarChar(5000)
+  category                   ReminderCategory @default(PERSONAL)
+  status                     ReminderStatus   @default(PENDING)
+  priority                   ReminderPriority @default(NORMAL)
+  // Exactamente uno: un instante con hora o una fecha local, sin inventar la medianoche.
+  dueAt                      DateTime?        @db.Timestamptz(3)
+  dueDate                    DateTime?        @db.Date
+  timezone                   String           @default("America/La_Paz") @db.VarChar(100)
+  notificationOffsetsMinutes Int[]            @default([0])
+  // Reservado, sin permitir activar recurrencias hasta implementar su entrega en la fase 5.
+  recurrenceRule             String?          @db.VarChar(1000)
+  completedAt                DateTime?        @db.Timestamptz(3)
+  version                    Int              @default(1)
+  // La clave y el hash permiten repetir POST sin duplicar ni reutilizar una clave para otro contenido.
+  createKey                  String           @db.Uuid
+  createPayloadHash          String           @db.Char(64)
+  createdAt                  DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@unique([userId, createKey])
+  @@index([userId, status, dueAt])
+  @@index([userId, status, dueDate])
+  @@index([userId, category, dueAt])
+}
